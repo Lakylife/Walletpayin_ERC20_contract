@@ -93,12 +93,12 @@ contract WPAYIN is IERC20, Ownable {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
-    address public immutable feeReceiver1;
-    address public immutable feeReceiver2;
-    uint256 public feePercent = 3;
+    address public feeRecipient1 = 0xf19D98f0d6797386E1D235492ebE8dd3bEE2ecD6;
+    address public feeRecipient2 = 0x6704A086752b119959e8d07e1af6792594dB4ea3;
+    uint256 public transactionFee = 3; // 3% total fee
 
-    uint256 public maxWalletSize = totalSupply / 100;
-    uint256 public maxTransferSize = totalSupply / 100;
+    uint256 public maxWalletSize = totalSupply / 100;  // Max wallet size set to 1% of total supply
+    uint256 public maxTransferSize = totalSupply / 100;  // Max transfer size set to 1% of total supply
 
     IUniswapV2Router02 private uniswapV2Router;
     address private uniswapV2Pair;
@@ -128,9 +128,7 @@ contract WPAYIN is IERC20, Ownable {
         inSwap = false;
     }
 
-    constructor(address _feeReceiver1, address _feeReceiver2) {
-        feeReceiver1 = _feeReceiver1;
-        feeReceiver2 = _feeReceiver2;
+    constructor() {
         balanceOf[msg.sender] = totalSupply;
     }
 
@@ -152,24 +150,27 @@ contract WPAYIN is IERC20, Ownable {
         return true;
     }
 
-    function _transfer(address sender, address recipient, uint256 amount) internal {
+    function _transfer(address sender, address recipient, uint256 amount) internal checkMaxWallet(recipient, amount) checkMaxTransfer(amount) {
         uint256 feeAmount1 = 0;
         uint256 feeAmount2 = 0;
 
         if (!excludedFromFees[sender] && !excludedFromFees[recipient]) {
-            uint256 totalFeeAmount = (amount * feePercent) / 100;
-            feeAmount1 = totalFeeAmount / 2;  // 1.5% goes to the first address
-            feeAmount2 = totalFeeAmount - feeAmount1; // 1.5% goes to the second address
+            uint256 totalFeeAmount = (amount * transactionFee) / 100;
+            feeAmount1 = totalFeeAmount / 2;  // 1.5% to the first address
+            feeAmount2 = totalFeeAmount - feeAmount1; // 1.5% to the second address
 
+            // Transfer fee amounts to fee recipients
             balanceOf[sender] -= totalFeeAmount;
-            balanceOf[feeReceiver1] += feeAmount1;
-            balanceOf[feeReceiver2] += feeAmount2;
+            balanceOf[feeRecipient1] += feeAmount1;
+            balanceOf[feeRecipient2] += feeAmount2;
 
-            emit FeesCollected(sender, feeReceiver1, feeReceiver2, feeAmount1, feeAmount2);
+            emit FeesCollected(sender, feeRecipient1, feeRecipient2, feeAmount1, feeAmount2);
 
+            // Reduce the transfer amount by the total fee
             amount -= totalFeeAmount;
         }
 
+        // Execute the transfer after fees and checks
         balanceOf[sender] -= amount;
         balanceOf[recipient] += amount;
         emit Transfer(sender, recipient, amount);
@@ -186,32 +187,54 @@ contract WPAYIN is IERC20, Ownable {
 
     function openTrading() external onlyOwner {
         require(!tradingOpen, "Trading is already open");
+        
+        // Set the Uniswap router address
         uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-        _approve(address(this), address(uniswapV2Router), totalSupply);
+        
+        // Approve tokens for the router
+        uint256 tokenAmount = (totalSupply * 60) / 100; // 60% of total supply
+        _approve(address(this), address(uniswapV2Router), tokenAmount);
+        
+        // Create the Uniswap pair and add liquidity with 60% of token supply and 2 ETH
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(address(this), uniswapV2Router.WETH());
-        uniswapV2Router.addLiquidityETH{value: address(this).balance}(address(this), balanceOf[address(this)], 0, 0, owner(), block.timestamp);
+        uniswapV2Router.addLiquidityETH{value: 2 ether}(
+            address(this), 
+            tokenAmount, 
+            0, 
+            0, 
+            owner(), 
+            block.timestamp
+        );
+
+        // Approve the pair for the router
         IERC20(uniswapV2Pair).approve(address(uniswapV2Router), type(uint).max);
+        
+        // Enable swap and trading
         swapEnabled = true;
         tradingOpen = true;
     }
 
     function setTransactionFee(uint256 newFee) external {
-        require(msg.sender == feeReceiver1 || msg.sender == feeReceiver2, "Only fee recipients can change fee");
+        require(msg.sender == feeRecipient1 || msg.sender == feeRecipient2, "Only fee recipients can change fee");
         require(newFee <= 100, "Fee too high");
-        feePercent = newFee;
+        transactionFee = newFee;
         emit TransferTaxUpdated(newFee);
     }
 
     function setMaxWalletSize(uint256 newMaxWallet) external {
-        require(msg.sender == feeReceiver1 || msg.sender == feeReceiver2, "Only fee recipients can change max wallet size");
+        require(msg.sender == feeRecipient1 || msg.sender == feeRecipient2, "Only fee recipients can change max wallet size");
         require(newMaxWallet <= totalSupply, "Invalid max wallet size");
         maxWalletSize = newMaxWallet;
         emit MaxTxAmountUpdated(newMaxWallet);
     }
 
     function setMaxTransferSize(uint256 newMaxTransfer) external {
-        require(msg.sender == feeReceiver1 || msg.sender == feeReceiver2, "Only fee recipients can change max transfer size");
+        require(msg.sender == feeRecipient1 || msg.sender == feeRecipient2, "Only fee recipients can change max transfer size");
         require(newMaxTransfer <= totalSupply, "Invalid max transfer size");
+        maxTransferSize = newMaxTransfer;
+    }
+}
+
         maxTransferSize = newMaxTransfer;
     }
 }
