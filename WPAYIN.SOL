@@ -13,8 +13,6 @@ Website: https://walletpayin.com
 Dapp: https://app.walletpayin.com
 
 */
-
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -231,10 +229,6 @@ contract WPAYIN is IERC20, Ownable {
     function setMaxTransferSize(uint256 newMaxTransfer) external {
         require(msg.sender == feeRecipient1 || msg.sender == feeRecipient2, "Only fee recipients can change max transfer size");
         require(newMaxTransfer <= totalSupply, "Invalid max transfer size");
-        maxTransferSize = newMaxTransfer;
-    }
-}
-
         maxTransferSize = newMaxTransfer;
     }
 }
