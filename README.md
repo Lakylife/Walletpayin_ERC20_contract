@@ -1,6 +1,6 @@
 # WPAYIN Smart Contract
 
-##OFFICIAL CONTRACT:## 0x28450F5b5576c19cc1FD90fA84EDcf893d136624
+**OFFICIAL CONTRACT:** 0x28450F5b5576c19cc1FD90fA84EDcf893d136624
 
 ## Overview
 The **WPAYIN** smart contract represents an ERC-20 token called **WPAYIN** (symbol: **WPI**). WPAYIN serves as a cross-chain wallet solution, bridging blockchain ecosystems like Ethereum, TON, and Bitcoin, and offering users a unified, seamless experience.
